@@ -24,6 +24,7 @@ internal sealed class InspectorForm : Form
     private readonly Label _statusLabel;
     private readonly ProgressBar _progressBar;
     private readonly TextBox _progressLog;
+    private readonly Button _openResultsButton;
     private readonly Button _openSummaryButton;
     private readonly Button _openFolderButton;
     private readonly Button _closeButton;
@@ -71,6 +72,14 @@ internal sealed class InspectorForm : Form
             BackColor = SystemColors.Window,
         };
 
+        _openResultsButton = new Button
+        {
+            Text = "View result dashboard",
+            AutoSize = true,
+            Enabled = false,
+        };
+        _openResultsButton.Click += (_, _) => OpenResultDashboard();
+
         _openSummaryButton = new Button
         {
             Text = "Open summary",
@@ -102,6 +111,7 @@ internal sealed class InspectorForm : Form
         buttonPanel.Controls.Add(_closeButton);
         buttonPanel.Controls.Add(_openFolderButton);
         buttonPanel.Controls.Add(_openSummaryButton);
+        buttonPanel.Controls.Add(_openResultsButton);
 
         Controls.Add(_progressLog);
         Controls.Add(buttonPanel);
@@ -177,9 +187,11 @@ internal sealed class InspectorForm : Form
             _reportPath = FindReportPath(output);
             if (_process.ExitCode == 0 && _reportPath is not null && File.Exists(_reportPath))
             {
+                _openResultsButton.Enabled = true;
                 _openSummaryButton.Enabled = true;
                 _openFolderButton.Enabled = true;
-                Complete("Collection and analysis completed. Open the summary or report folder to review results.", succeeded: true);
+                Complete("Collection and analysis completed.", succeeded: true);
+                BeginInvoke(new Action(OpenResultDashboard));
                 return;
             }
 
@@ -301,6 +313,28 @@ internal sealed class InspectorForm : Form
         if (File.Exists(summaryPath))
         {
             Process.Start(new ProcessStartInfo { FileName = summaryPath, UseShellExecute = true });
+        }
+    }
+
+    private void OpenResultDashboard()
+    {
+        if (_reportPath is null || !File.Exists(_reportPath))
+        {
+            return;
+        }
+
+        try
+        {
+            using var dashboard = new ResultDashboardForm(_reportPath);
+            dashboard.ShowDialog(this);
+        }
+        catch (Exception exception)
+        {
+            MessageBox.Show(
+                exception.Message,
+                "Android Log Inspector - result dashboard failed",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
         }
     }
 

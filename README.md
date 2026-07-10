@@ -4,13 +4,16 @@ Portable Windows tool that bundles ADB, collects Android diagnostics, and groups
 
 ## Current Release
 
-`0.1.0` targets Windows x64. It provides:
+`0.3.0` targets Windows x64. It provides:
 
 - A self-contained `AndroidLogInspector.exe`; no .NET or Android Studio installation is required.
 - Live collection progress with start/completion status for each ADB step.
 - Collection of device properties, logcat, selected dumpsys output, permitted tombstones/ANR/pstore files, and an optional full bugreport.
 - Deduplicated finding groups for kernel faults, ART boot-image mismatch, native heap corruption, native crashes, ANR, and display timeouts.
 - Text, Markdown, and JSON analysis outputs.
+- A post-analysis result dashboard with severity counts, priority action, grouped causes, evidence copying, and source-file navigation.
+- Collection-quality states that distinguish permission-limited data from an actual ADB collection failure.
+- A support-bundle export containing reports and collection status without raw device logs or bugreports.
 
 Keep `AndroidLogInspector.exe` and the adjacent `platform-tools` directory together when distributing a release.
 
@@ -36,7 +39,7 @@ The launcher title and Windows executable metadata are produced from the same pr
 
 ## UX Direction
 
-The result UX roadmap is in [docs/UX-ROADMAP.md](docs/UX-ROADMAP.md). The next product iteration should make the post-analysis result easier to scan before adding additional detection rules.
+The implemented result UX and future refinements are documented in [docs/UX-ROADMAP.md](docs/UX-ROADMAP.md).
 
 ## Third-Party Notices
 

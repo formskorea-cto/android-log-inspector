@@ -32,9 +32,9 @@ Add `Copy incident summary`, `Open report folder`, and `Export support bundle` a
 
 ## Delivery Sequence
 
-- `0.1.x`: Stabilize collection, versioning, and report correctness.
-- `0.2.0`: Replace the plain post-run result with the decision summary and grouped finding cards.
-- `0.3.0`: Add evidence navigation, collection-quality states, and support-bundle export.
+- `0.1.0`: Stabilized collection, versioning, and report correctness.
+- `0.3.0`: Delivered the decision summary, grouped finding cards, evidence navigation, collection-quality states, and support-bundle export.
+- Future: Add timestamp-level evidence filtering and configurable data-redaction policy for support bundles.
 
 ## Success Criteria
 

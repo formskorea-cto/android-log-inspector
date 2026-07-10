@@ -13,6 +13,7 @@ $ErrorActionPreference = 'Stop'
 $script:Findings = [System.Collections.Generic.List[object]]::new()
 $script:FindingKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 $script:SourcesScanned = [System.Collections.Generic.List[string]]::new()
+$script:CollectionSteps = [System.Collections.Generic.List[object]]::new()
 
 function Write-Status {
     param([string]$Message)
@@ -47,13 +48,29 @@ function Get-QuotedCommand {
     }) -join ' ')
 }
 
+function Write-CollectionStatusReport {
+    param(
+        [string]$CollectionDirectory,
+        [string]$DeviceSerial
+    )
+
+    $report = [pscustomobject]@{
+        SchemaVersion = 1
+        DeviceSerial  = $DeviceSerial
+        Created       = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss K')
+        Steps         = @($script:CollectionSteps)
+    }
+    Write-Utf8File -Path (Join-Path $CollectionDirectory 'collection-status.json') -Content ($report | ConvertTo-Json -Depth 5)
+}
+
 function Invoke-AdbCapture {
     param(
         [string]$AdbPath,
         [string[]]$DeviceArguments,
         [string[]]$CommandArguments,
         [string]$Destination,
-        [string]$StatusLabel
+        [string]$StatusLabel,
+        [bool]$PermissionLimited = $false
     )
 
     if ([string]::IsNullOrWhiteSpace($StatusLabel)) {
@@ -77,6 +94,27 @@ function Invoke-AdbCapture {
 
     $lines.Add('exit_code=' + $exitCode)
     Write-Utf8File -Path $Destination -Content (($lines -join [Environment]::NewLine) + [Environment]::NewLine)
+    $collectionStatus = if ($exitCode -eq 0) {
+        'Collected'
+    } elseif ($PermissionLimited) {
+        'NotAvailable'
+    } else {
+        'Failed'
+    }
+    $collectionDetail = if ($exitCode -eq 0) {
+        'Collected successfully.'
+    } elseif ($PermissionLimited) {
+        'Android permissions or device policy prevented collection. Analysis continues with the available sources.'
+    } else {
+        'The ADB command did not complete successfully. Review the matching command output file.'
+    }
+    $script:CollectionSteps.Add([pscustomobject]@{
+        Status     = $collectionStatus
+        Label      = $StatusLabel
+        ExitCode   = $exitCode
+        Detail     = $collectionDetail
+        OutputFile = Split-Path -Leaf $Destination
+    })
     Write-Status "Completed: $StatusLabel (exit code $exitCode)"
     return $exitCode
 }
@@ -88,12 +126,13 @@ function Invoke-AdbPull {
         [string]$RemotePath,
         [string]$DestinationPath,
         [string]$LogPath,
-        [string]$StatusLabel
+        [string]$StatusLabel,
+        [bool]$PermissionLimited = $false
     )
 
     $destinationParent = Split-Path -Parent $DestinationPath
     New-Item -ItemType Directory -Force -Path $destinationParent | Out-Null
-    return Invoke-AdbCapture -AdbPath $AdbPath -DeviceArguments $DeviceArguments -CommandArguments @('pull', $RemotePath, $DestinationPath) -Destination $LogPath -StatusLabel $StatusLabel
+    return Invoke-AdbCapture -AdbPath $AdbPath -DeviceArguments $DeviceArguments -CommandArguments @('pull', $RemotePath, $DestinationPath) -Destination $LogPath -StatusLabel $StatusLabel -PermissionLimited $PermissionLimited
 }
 
 function Get-ConnectedDevices {
@@ -412,20 +451,21 @@ function Collect-DeviceLogs {
         @{ Name = 'dumpsys_cpuinfo.txt'; StatusLabel = 'Collecting CPU diagnostics'; CommandArguments = @('shell', 'dumpsys', 'cpuinfo') },
         @{ Name = 'dumpsys_activity.txt'; StatusLabel = 'Collecting activity process diagnostics'; CommandArguments = @('shell', 'dumpsys', 'activity', 'processes') },
         @{ Name = 'dumpsys_surfaceflinger.txt'; StatusLabel = 'Collecting display pipeline diagnostics'; CommandArguments = @('shell', 'dumpsys', 'SurfaceFlinger') },
-        @{ Name = 'dmesg.txt'; StatusLabel = 'Collecting kernel messages'; CommandArguments = @('shell', 'dmesg') },
-        @{ Name = 'tombstones_listing.txt'; StatusLabel = 'Listing native crash tombstones'; CommandArguments = @('shell', 'ls', '-la', '/data/tombstones') },
-        @{ Name = 'anr_listing.txt'; StatusLabel = 'Listing ANR traces'; CommandArguments = @('shell', 'ls', '-la', '/data/anr') },
-        @{ Name = 'pstore_listing.txt'; StatusLabel = 'Listing persistent kernel logs'; CommandArguments = @('shell', 'ls', '-la', '/sys/fs/pstore') }
+        @{ Name = 'dmesg.txt'; StatusLabel = 'Collecting kernel messages'; PermissionLimited = $true; CommandArguments = @('shell', 'dmesg') },
+        @{ Name = 'tombstones_listing.txt'; StatusLabel = 'Listing native crash tombstones'; PermissionLimited = $true; CommandArguments = @('shell', 'ls', '-la', '/data/tombstones') },
+        @{ Name = 'anr_listing.txt'; StatusLabel = 'Listing ANR traces'; PermissionLimited = $true; CommandArguments = @('shell', 'ls', '-la', '/data/anr') },
+        @{ Name = 'pstore_listing.txt'; StatusLabel = 'Listing persistent kernel logs'; PermissionLimited = $true; CommandArguments = @('shell', 'ls', '-la', '/sys/fs/pstore') }
     )
 
     foreach ($captureSpec in $captureSpecs) {
-        Invoke-AdbCapture -AdbPath $AdbPath -DeviceArguments $deviceArguments -CommandArguments $captureSpec.CommandArguments -Destination (Join-Path $CollectionDirectory $captureSpec.Name) -StatusLabel $captureSpec.StatusLabel | Out-Null
+        $permissionLimited = $captureSpec.ContainsKey('PermissionLimited') -and [bool]$captureSpec.PermissionLimited
+        Invoke-AdbCapture -AdbPath $AdbPath -DeviceArguments $deviceArguments -CommandArguments $captureSpec.CommandArguments -Destination (Join-Path $CollectionDirectory $captureSpec.Name) -StatusLabel $captureSpec.StatusLabel -PermissionLimited $permissionLimited | Out-Null
     }
 
     $pulledDirectory = Join-Path $CollectionDirectory 'pulled'
-    Invoke-AdbPull -AdbPath $AdbPath -DeviceArguments $deviceArguments -RemotePath '/data/tombstones' -DestinationPath (Join-Path $pulledDirectory 'tombstones') -LogPath (Join-Path $CollectionDirectory 'pull_tombstones.txt') -StatusLabel 'Pulling native tombstones (permission may be denied)' | Out-Null
-    Invoke-AdbPull -AdbPath $AdbPath -DeviceArguments $deviceArguments -RemotePath '/data/anr' -DestinationPath (Join-Path $pulledDirectory 'anr') -LogPath (Join-Path $CollectionDirectory 'pull_anr.txt') -StatusLabel 'Pulling ANR traces (permission may be denied)' | Out-Null
-    Invoke-AdbPull -AdbPath $AdbPath -DeviceArguments $deviceArguments -RemotePath '/sys/fs/pstore' -DestinationPath (Join-Path $pulledDirectory 'pstore') -LogPath (Join-Path $CollectionDirectory 'pull_pstore.txt') -StatusLabel 'Pulling persistent kernel logs (permission may be denied)' | Out-Null
+    Invoke-AdbPull -AdbPath $AdbPath -DeviceArguments $deviceArguments -RemotePath '/data/tombstones' -DestinationPath (Join-Path $pulledDirectory 'tombstones') -LogPath (Join-Path $CollectionDirectory 'pull_tombstones.txt') -StatusLabel 'Pulling native tombstones (permission may be denied)' -PermissionLimited $true | Out-Null
+    Invoke-AdbPull -AdbPath $AdbPath -DeviceArguments $deviceArguments -RemotePath '/data/anr' -DestinationPath (Join-Path $pulledDirectory 'anr') -LogPath (Join-Path $CollectionDirectory 'pull_anr.txt') -StatusLabel 'Pulling ANR traces (permission may be denied)' -PermissionLimited $true | Out-Null
+    Invoke-AdbPull -AdbPath $AdbPath -DeviceArguments $deviceArguments -RemotePath '/sys/fs/pstore' -DestinationPath (Join-Path $pulledDirectory 'pstore') -LogPath (Join-Path $CollectionDirectory 'pull_pstore.txt') -StatusLabel 'Pulling persistent kernel logs (permission may be denied)' -PermissionLimited $true | Out-Null
 
     if ($IncludeBugreport) {
         $bugreportDirectory = Join-Path $CollectionDirectory 'bugreport'
@@ -481,8 +521,10 @@ try {
 
     foreach ($deviceSerial in $connectedDevices) {
         $deviceDirectory = Join-Path $rootCollectionDirectory (Get-SafeName $deviceSerial)
+        $script:CollectionSteps.Clear()
         Write-Status "Collecting logs from $deviceSerial"
         Collect-DeviceLogs -AdbPath $adbPath -DeviceSerial $deviceSerial -CollectionDirectory $deviceDirectory -IncludeBugreport (-not $SkipBugreport)
+        Write-CollectionStatusReport -CollectionDirectory $deviceDirectory -DeviceSerial $deviceSerial
 
         $script:Findings.Clear()
         $script:FindingKeys.Clear()
