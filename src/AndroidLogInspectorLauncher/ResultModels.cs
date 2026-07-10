@@ -74,6 +74,7 @@ internal sealed class AnalysisDashboardData
     public string SummaryPath => Path.Combine(Path.GetDirectoryName(ReportPath)!, "analysis-summary.txt");
     public string AnalysisJsonPath => Path.Combine(Path.GetDirectoryName(ReportPath)!, "analysis.json");
     public string? CollectionStatusPath { get; private init; }
+    public string? CollectionDirectory { get; private init; }
 
     public string OverallStatus => CriticalCount > 0
         ? "Critical device fault detected"
@@ -133,6 +134,7 @@ internal sealed class AnalysisDashboardData
         return new AnalysisDashboardData(reportPath, findings, groups, collectionStatus)
         {
             CollectionStatusPath = collectionStatus is null ? null : collectionStatusPath,
+            CollectionDirectory = collectionStatus is null ? null : collectionDirectory,
         };
     }
 

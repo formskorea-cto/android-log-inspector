@@ -7,7 +7,7 @@
     <Nullable>enable</Nullable>
     <AssemblyName>AndroidLogInspector</AssemblyName>
     <Product>Android Log Inspector</Product>
-    <Version>0.3.1</Version>
+    <Version>0.3.2</Version>
     <AssemblyVersion>$(Version).0</AssemblyVersion>
     <FileVersion>$(Version).0</FileVersion>
     <InformationalVersion>$(Version)</InformationalVersion>

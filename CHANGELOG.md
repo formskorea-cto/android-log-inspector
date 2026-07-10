@@ -2,6 +2,10 @@
 
 All notable changes are recorded here. Versions follow semantic versioning.
 
+## 0.3.2 - 2026-07-10
+
+- Added buttons to open the collected-log folder, the selected finding source, and the selected collection-step log.
+
 ## 0.3.1 - 2026-07-10
 
 - Replaced the indeterminate collection marquee with completed/total task progress.

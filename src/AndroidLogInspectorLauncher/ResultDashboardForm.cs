@@ -68,12 +68,20 @@ internal sealed class ResultDashboardForm : Form
         closeButton.Click += (_, _) => Close();
         var openFolderButton = new Button { Text = "Open report folder", AutoSize = true };
         openFolderButton.Click += (_, _) => OpenReportFolder();
+        var openCollectedLogsButton = new Button
+        {
+            Text = "Open collected logs",
+            AutoSize = true,
+            Enabled = _data.CollectionDirectory is not null,
+        };
+        openCollectedLogsButton.Click += (_, _) => OpenCollectedLogs();
         var exportButton = new Button { Text = "Export support bundle", AutoSize = true };
         exportButton.Click += (_, _) => ExportSupportBundle();
         var copySummaryButton = new Button { Text = "Copy incident summary", AutoSize = true };
         copySummaryButton.Click += (_, _) => CopyIncidentSummary();
         actionBar.Controls.Add(closeButton);
         actionBar.Controls.Add(openFolderButton);
+        actionBar.Controls.Add(openCollectedLogsButton);
         actionBar.Controls.Add(exportButton);
         actionBar.Controls.Add(copySummaryButton);
 
@@ -96,8 +104,8 @@ internal sealed class ResultDashboardForm : Form
         };
         _copyEvidenceButton = new Button { Text = "Copy evidence", AutoSize = true, Enabled = false };
         _copyEvidenceButton.Click += (_, _) => CopyEvidence();
-        _openSourceButton = new Button { Text = "Open source", AutoSize = true, Enabled = false };
-        _openSourceButton.Click += (_, _) => OpenSource();
+        _openSourceButton = new Button { Text = "Open selected log", AutoSize = true, Enabled = false };
+        _openSourceButton.Click += (_, _) => OpenSelectedFindingLog();
 
         var detailActions = new FlowLayoutPanel
         {
@@ -220,6 +228,7 @@ internal sealed class ResultDashboardForm : Form
             item.SubItems.Add(step.Label);
             item.SubItems.Add(step.ExitCode.ToString());
             item.SubItems.Add(step.Detail);
+            item.Tag = step;
             item.BackColor = step.Status switch
             {
                 "Collected" => Color.FromArgb(238, 248, 240),
@@ -228,7 +237,30 @@ internal sealed class ResultDashboardForm : Form
             };
             list.Items.Add(item);
         }
+
+        var openSelectedLogButton = new Button
+        {
+            Text = "Open selected log",
+            AutoSize = true,
+            Enabled = false,
+        };
+        openSelectedLogButton.Click += (_, _) => OpenSelectedCollectionLog(list);
+        list.SelectedIndexChanged += (_, _) =>
+            openSelectedLogButton.Enabled = list.SelectedItems.Count == 1
+                && list.SelectedItems[0].Tag is CollectionStep step
+                && CanOpenCollectionLog(step);
+        list.DoubleClick += (_, _) => OpenSelectedCollectionLog(list);
+
+        var actionBar = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Bottom,
+            Height = 42,
+            Padding = new Padding(12, 6, 12, 4),
+            FlowDirection = FlowDirection.LeftToRight,
+        };
+        actionBar.Controls.Add(openSelectedLogButton);
         collectionTab.Controls.Add(list);
+        collectionTab.Controls.Add(actionBar);
         collectionTab.Controls.Add(header);
     }
 
@@ -264,7 +296,7 @@ internal sealed class ResultDashboardForm : Form
         Clipboard.SetText($"{group.Evidence}\r\nSource: {group.Source}:{group.LineNumber}");
     }
 
-    private void OpenSource()
+    private void OpenSelectedFindingLog()
     {
         var group = SelectedGroup();
         if (group is null)
@@ -281,6 +313,49 @@ internal sealed class ResultDashboardForm : Form
         }
 
         Process.Start(new ProcessStartInfo { FileName = sourcePath, UseShellExecute = true });
+    }
+
+    private void OpenCollectedLogs()
+    {
+        if (string.IsNullOrWhiteSpace(_data.CollectionDirectory) || !Directory.Exists(_data.CollectionDirectory))
+        {
+            MessageBox.Show(this, "The collected-log folder is not available for this analysis.", "Android Log Inspector", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        Process.Start(new ProcessStartInfo { FileName = _data.CollectionDirectory, UseShellExecute = true });
+    }
+
+    private void OpenSelectedCollectionLog(ListView list)
+    {
+        if (list.SelectedItems.Count != 1 || list.SelectedItems[0].Tag is not CollectionStep step)
+        {
+            return;
+        }
+
+        OpenCollectionLog(step);
+    }
+
+    private bool CanOpenCollectionLog(CollectionStep step) =>
+        !string.IsNullOrWhiteSpace(_data.CollectionDirectory)
+        && !string.IsNullOrWhiteSpace(step.OutputFile);
+
+    private void OpenCollectionLog(CollectionStep step)
+    {
+        if (!CanOpenCollectionLog(step))
+        {
+            MessageBox.Show(this, "The selected collection log is not available.", "Android Log Inspector", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        var logPath = Path.Combine(_data.CollectionDirectory!, Path.GetFileName(step.OutputFile));
+        if (!File.Exists(logPath))
+        {
+            MessageBox.Show(this, "The collected log file is not available:\n" + logPath, "Android Log Inspector", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        Process.Start(new ProcessStartInfo { FileName = logPath, UseShellExecute = true });
     }
 
     private void OpenReportFolder()
