@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Reflection;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Windows.Forms;
 
 namespace AndroidLogInspectorLauncher;
@@ -19,6 +20,9 @@ internal static class Program
 internal sealed class InspectorForm : Form
 {
     private const int MaximumVisibleLogCharacters = 120_000;
+    private static readonly Regex ProgressPattern = new(
+        @"^\[Android Log Inspector\] Progress: (?<completed>\d+)/(?<total>\d+) (?<message>.+)$",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private readonly string[] _arguments;
     private readonly Label _statusLabel;
@@ -387,10 +391,29 @@ internal sealed class InspectorForm : Form
         _progressLog.SelectionStart = _progressLog.TextLength;
         _progressLog.ScrollToCaret();
 
-        if (line.StartsWith("[Android Log Inspector]", StringComparison.OrdinalIgnoreCase))
+        if (!TryApplyProgress(line) && line.StartsWith("[Android Log Inspector]", StringComparison.OrdinalIgnoreCase))
         {
             _statusLabel.Text = line;
         }
+    }
+
+    private bool TryApplyProgress(string line)
+    {
+        var match = ProgressPattern.Match(line);
+        if (!match.Success
+            || !int.TryParse(match.Groups["completed"].Value, out var completed)
+            || !int.TryParse(match.Groups["total"].Value, out var total)
+            || total < 1)
+        {
+            return false;
+        }
+
+        _progressBar.Style = ProgressBarStyle.Continuous;
+        _progressBar.Minimum = 0;
+        _progressBar.Maximum = total;
+        _progressBar.Value = Math.Clamp(completed, _progressBar.Minimum, _progressBar.Maximum);
+        _statusLabel.Text = $"{completed}/{total} {match.Groups["message"].Value}";
+        return true;
     }
 
     private string GetCombinedOutput()

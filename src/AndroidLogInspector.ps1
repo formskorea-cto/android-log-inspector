@@ -14,10 +14,20 @@ $script:Findings = [System.Collections.Generic.List[object]]::new()
 $script:FindingKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 $script:SourcesScanned = [System.Collections.Generic.List[string]]::new()
 $script:CollectionSteps = [System.Collections.Generic.List[object]]::new()
+$script:WorkCompleted = 0
+$script:WorkTotal = 0
 
 function Write-Status {
     param([string]$Message)
     Write-Host "[Android Log Inspector] $Message"
+}
+
+function Write-WorkProgress {
+    param([string]$Message)
+
+    if ($script:WorkTotal -gt 0) {
+        Write-Status "Progress: $($script:WorkCompleted)/$($script:WorkTotal) $Message"
+    }
 }
 
 function Get-SafeName {
@@ -116,6 +126,10 @@ function Invoke-AdbCapture {
         OutputFile = Split-Path -Leaf $Destination
     })
     Write-Status "Completed: $StatusLabel (exit code $exitCode)"
+    if ($script:WorkTotal -gt 0) {
+        $script:WorkCompleted++
+        Write-WorkProgress -Message $StatusLabel
+    }
     return $exitCode
 }
 
@@ -438,6 +452,10 @@ function Collect-DeviceLogs {
 
     $deviceArguments = @('-s', $DeviceSerial)
     New-Item -ItemType Directory -Force -Path $CollectionDirectory | Out-Null
+    # Two preflight calls, thirteen capture specs, three pulls, optional bugreport, analysis, and report generation.
+    $script:WorkCompleted = 0
+    $script:WorkTotal = 20 + [int]$IncludeBugreport
+    Write-WorkProgress -Message 'Preparing device collection'
     Invoke-AdbCapture -AdbPath $AdbPath -DeviceArguments @() -CommandArguments @('version') -Destination (Join-Path $CollectionDirectory 'adb_version.txt') -StatusLabel 'Checking bundled ADB version' | Out-Null
     Invoke-AdbCapture -AdbPath $AdbPath -DeviceArguments $deviceArguments -CommandArguments @('get-state') -Destination (Join-Path $CollectionDirectory 'device_state.txt') -StatusLabel 'Checking device authorization state' | Out-Null
 
@@ -492,9 +510,16 @@ try {
     if ($InputPath) {
         $analysisName = Get-SafeName ((Get-Item -LiteralPath $InputPath).BaseName)
         $reportDirectory = Join-Path $OutputRoot ("analysis-$runStamp-$analysisName")
+        $script:WorkCompleted = 0
+        $script:WorkTotal = 2
+        Write-WorkProgress -Message 'Preparing existing log analysis'
         Write-Status "Analyzing existing logs: $InputPath"
         Analyze-LogPath -Path $InputPath
+        $script:WorkCompleted++
+        Write-WorkProgress -Message 'Generating analysis report'
         $report = New-AnalysisReport -AnalysisInput $InputPath -ReportDirectory $reportDirectory
+        $script:WorkCompleted++
+        Write-WorkProgress -Message 'Analysis report ready'
         Write-Status "Report created: $($report.ReportPath)"
         Get-Content -LiteralPath $report.SummaryPath
         exit 0
@@ -531,8 +556,12 @@ try {
         $script:SourcesScanned.Clear()
         Write-Status "Analyzing collected logs from $deviceSerial"
         Analyze-LogPath -Path $deviceDirectory
+        $script:WorkCompleted++
+        Write-WorkProgress -Message 'Generating analysis report'
         $reportDirectory = Join-Path $deviceDirectory 'analysis'
         $report = New-AnalysisReport -AnalysisInput $deviceDirectory -ReportDirectory $reportDirectory
+        $script:WorkCompleted++
+        Write-WorkProgress -Message 'Analysis report ready'
         Write-Status "Analysis complete for ${deviceSerial}: $($report.ReportPath)"
         Get-Content -LiteralPath $report.SummaryPath
     }

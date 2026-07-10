@@ -2,6 +2,11 @@
 
 All notable changes are recorded here. Versions follow semantic versioning.
 
+## 0.3.1 - 2026-07-10
+
+- Replaced the indeterminate collection marquee with completed/total task progress.
+- Included analysis and report generation in the displayed work total.
+
 ## 0.3.0 - 2026-07-10
 
 - Added a result dashboard with decision status, severity totals, cause groups, evidence copying, and source-file navigation.
