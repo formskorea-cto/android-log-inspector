@@ -4,10 +4,15 @@ Portable Windows tool that bundles ADB, collects Android diagnostics, and groups
 
 ## Current Release
 
-`0.3.2` targets Windows x64. It provides:
+`0.3.4` targets Windows x64. It provides:
 
 - A self-contained `AndroidLogInspector.exe`; no .NET or Android Studio installation is required.
 - Determinate live progress with completed/total work steps for collection, analysis, and report generation.
+- Korean collection progress and failure messages that distinguish missing, unauthorized, offline, and unavailable ADB devices.
+- Immediate cancellation of collection when ADB device verification fails or the ADB transport disconnects during collection.
+- Restartable collection from the launcher without reopening the EXE.
+- Stage buttons for ADB connection, log collection, analysis, and report generation with pending, running, completed, and failed states.
+- Live collected-data tracking so a disconnected device still leaves the failed stage, partial files, and status JSON visible.
 - Collection of device properties, logcat, selected dumpsys output, permitted tombstones/ANR/pstore files, and an optional full bugreport.
 - Deduplicated finding groups for kernel faults, ART boot-image mismatch, native heap corruption, native crashes, ANR, and display timeouts.
 - Text, Markdown, and JSON analysis outputs.
