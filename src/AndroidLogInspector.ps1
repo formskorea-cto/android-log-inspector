@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [string]$Serial,
     [string]$InputPath,
@@ -9,6 +9,12 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+# The launcher reads redirected PowerShell output as UTF-8. Windows PowerShell
+# otherwise uses the active console code page, which corrupts Korean log text.
+$utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+[Console]::OutputEncoding = $utf8NoBom
+$OutputEncoding = $utf8NoBom
 
 $script:Findings = [System.Collections.Generic.List[object]]::new()
 $script:FindingKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
@@ -759,7 +765,7 @@ try {
         Write-StageEvent -State 'Completed' -Stage '보고서 생성' -Message '분석 보고서 생성 완료'
         Write-WorkProgress -Message '분석 보고서 생성 완료'
         Write-Status "보고서 생성 완료: $($report.ReportPath)"
-        Get-Content -LiteralPath $report.SummaryPath
+        Get-Content -LiteralPath $report.SummaryPath -Encoding UTF8
         exit 0
     }
 
@@ -832,7 +838,7 @@ try {
         Write-WorkProgress -Message '분석 보고서 생성 완료'
         Write-Status "보고서 생성 완료: $($report.ReportPath)"
         Write-Status "$deviceSerial 분석 완료"
-        Get-Content -LiteralPath $report.SummaryPath
+        Get-Content -LiteralPath $report.SummaryPath -Encoding UTF8
     }
     Write-RunStatusReport -RunDirectory $rootCollectionDirectory -OverallStatus 'Completed' -CurrentStage '완료'
 } catch {

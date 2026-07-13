@@ -2,6 +2,11 @@
 
 All notable changes are recorded here. Versions follow semantic versioning.
 
+## 0.3.5 - 2026-07-13
+
+- Fixed Korean text corruption in the launcher progress log when it runs Windows PowerShell.
+- Read UTF-8 analysis summaries explicitly before adding them to the progress log.
+
 ## 0.3.4 - 2026-07-10
 
 - Added a restart button so collection and analysis can be run again from the same launcher window.

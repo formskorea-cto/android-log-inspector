@@ -4,7 +4,7 @@ Portable Windows tool that bundles ADB, collects Android diagnostics, and groups
 
 ## Current Release
 
-`0.3.4` targets Windows x64. It provides:
+`0.3.5` targets Windows x64. It provides:
 
 - A self-contained `AndroidLogInspector.exe`; no .NET or Android Studio installation is required.
 - Determinate live progress with completed/total work steps for collection, analysis, and report generation.
